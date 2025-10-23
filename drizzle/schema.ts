@@ -25,4 +25,43 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// Transcription sessions table
+export const transcriptions = mysqlTable("transcriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  text: text("text").notNull(),
+  language: varchar("language", { length: 10 }).default("en").notNull(),
+  duration: int("duration"), // in seconds
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Transcription = typeof transcriptions.$inferSelect;
+export type InsertTranscription = typeof transcriptions.$inferInsert;
+
+// Translations table
+export const translations = mysqlTable("translations", {
+  id: int("id").autoincrement().primaryKey(),
+  transcriptionId: int("transcriptionId").notNull(),
+  sourceText: text("sourceText").notNull(),
+  translatedText: text("translatedText").notNull(),
+  targetLanguage: varchar("targetLanguage", { length: 10 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Translation = typeof translations.$inferSelect;
+export type InsertTranslation = typeof translations.$inferInsert;
+
+// Summaries table
+export const summaries = mysqlTable("summaries", {
+  id: int("id").autoincrement().primaryKey(),
+  transcriptionId: int("transcriptionId").notNull(),
+  summaryText: text("summaryText").notNull(),
+  summaryType: varchar("summaryType", { length: 20 }).notNull(), // short, medium, detailed
+  summaryLanguage: varchar("summaryLanguage", { length: 10 }).default("en").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Summary = typeof summaries.$inferSelect;
+export type InsertSummary = typeof summaries.$inferInsert;

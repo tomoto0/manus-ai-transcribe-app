@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, InsertTranscription, users, transcriptions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,18 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Transcription queries
+export async function getUserTranscriptions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(transcriptions).where(eq(transcriptions.userId, userId));
+}
+
+export async function createTranscription(data: InsertTranscription) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(transcriptions).values(data);
+  return result;
+}
+
+// TODO: add more feature queries here as your schema grows.
