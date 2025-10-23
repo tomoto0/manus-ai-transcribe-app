@@ -6,6 +6,8 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
+const CSP_HEADER = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http:; frame-ancestors 'self';";
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -21,6 +23,13 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+  
+  // Add CSP header to allow unsafe-eval for Manus runtime
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', CSP_HEADER);
+    next();
+  });
+  
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
@@ -58,6 +67,12 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // Add CSP header to allow unsafe-eval for Manus runtime
+  app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', CSP_HEADER);
+    next();
+  });
+
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
@@ -65,3 +80,4 @@ export function serveStatic(app: Express) {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
+

@@ -4,13 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
+import { APP_LOGO, APP_TITLE } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Mic, Copy, Download } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { Loader2, Mic, Copy } from "lucide-react";
+import { useState, useRef } from "react";
 
 export default function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [recordingState, setRecordingState] = useState<"idle" | "recording" | "processing">("idle");
   const [transcription, setTranscription] = useState("");
   const [translation, setTranslation] = useState("");
@@ -24,12 +24,6 @@ export default function Home() {
   const transcribeMutation = trpc.transcribe.audio.useMutation();
   const translateMutation = trpc.translate.text.useMutation();
   const summaryMutation = trpc.summary.generate.useMutation();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      window.location.href = getLoginUrl();
-    }
-  }, [isAuthenticated]);
 
   const startRecording = async () => {
     try {
@@ -72,24 +66,23 @@ export default function Home() {
     try {
       setRecordingState("processing");
       
-      // Upload audio to storage first
-      const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
-      
-      // For now, we'll use a simple approach - convert blob to data URL
+      // Convert blob to data URL
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         
-        // In production, you would upload to S3 first
-        // For this demo, we'll pass the data URL directly
-      const result = await transcribeMutation.mutateAsync({
-        audioUrl: dataUrl,
-        language: "en",
-      });
-        
-        if ('text' in result) {
-          setTranscription(result.text as string);
+        try {
+          const result = await transcribeMutation.mutateAsync({
+            audioUrl: dataUrl,
+            language: "en",
+          });
+          
+          if ('text' in result) {
+            setTranscription(result.text as string);
+          }
+        } catch (error) {
+          console.error("Transcription failed:", error);
+          alert("音声の転写に失敗しました");
         }
         setRecordingState("idle");
       };
@@ -143,27 +136,6 @@ export default function Home() {
     alert("コピーしました");
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>{APP_TITLE}</CardTitle>
-            <CardDescription>AI通訳・議事録作成アプリ</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600 mb-4">
-              このアプリを使用するにはログインが必要です。
-            </p>
-            <Button className="w-full" onClick={() => window.location.href = getLoginUrl()}>
-              ログイン
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
@@ -171,6 +143,7 @@ export default function Home() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">{APP_TITLE}</h1>
           <p className="text-gray-600">リアルタイム音声転写、翻訳、議事録作成</p>
+          {user && <p className="text-sm text-gray-500 mt-2">ユーザー: {user.name || user.email}</p>}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
