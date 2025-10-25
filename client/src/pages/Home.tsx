@@ -1,10 +1,9 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { APP_LOGO, APP_TITLE } from "@/const";
+import { APP_TITLE } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { Loader2, Mic, Copy } from "lucide-react";
 import { useState, useRef } from "react";
@@ -24,6 +23,7 @@ export default function Home() {
   const transcribeMutation = trpc.transcribe.audio.useMutation();
   const translateMutation = trpc.translate.text.useMutation();
   const summaryMutation = trpc.summary.generate.useMutation();
+  const uploadAudioMutation = trpc.storage.uploadAudio.useMutation();
 
   const startRecording = async () => {
     try {
@@ -53,7 +53,7 @@ export default function Home() {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setRecordingState("processing");
+      setRecordingState("idle");
     }
   };
 
@@ -66,27 +66,31 @@ export default function Home() {
     try {
       setRecordingState("processing");
       
-      // Convert blob to data URL
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const dataUrl = e.target?.result as string;
+      // Convert blob to array buffer
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+      
+      // Upload audio to storage
+      try {
+        const uploadResult = await uploadAudioMutation.mutateAsync({
+          audioData: base64Audio,
+          mimeType: audioBlob.type || "audio/webm",
+        });
         
-        try {
-          const result = await transcribeMutation.mutateAsync({
-            audioUrl: dataUrl,
-            language: "en",
-          });
-          
-          if ('text' in result) {
-            setTranscription(result.text as string);
-          }
-        } catch (error) {
-          console.error("Transcription failed:", error);
-          alert("音声の転写に失敗しました");
+        // Transcribe using the uploaded URL
+        const result = await transcribeMutation.mutateAsync({
+          audioUrl: uploadResult.url,
+          language: "en",
+        });
+        
+        if ('text' in result) {
+          setTranscription(result.text as string);
         }
-        setRecordingState("idle");
-      };
-      reader.readAsDataURL(audioBlob);
+      } catch (uploadError) {
+        console.error("Upload failed:", uploadError);
+        alert("オーディオのアップロードに失敗しました");
+      }
+      setRecordingState("idle");
     } catch (error) {
       console.error("Transcription failed:", error);
       alert("音声の転写に失敗しました");
@@ -178,8 +182,8 @@ export default function Home() {
               </div>
 
               {audioBlob && (
-                <Button onClick={handleTranscribe} className="w-full" disabled={transcribeMutation.isPending}>
-                  {transcribeMutation.isPending ? (
+                <Button onClick={handleTranscribe} className="w-full" disabled={transcribeMutation.isPending || uploadAudioMutation.isPending}>
+                  {transcribeMutation.isPending || uploadAudioMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       転写中...
