@@ -5,8 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { APP_TITLE } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Mic, Copy } from "lucide-react";
-import { useState, useRef } from "react";
+import { Loader2, Mic, Copy, CheckCircle } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 
 export default function Home() {
   const { user } = useAuth();
@@ -17,6 +17,7 @@ export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState("ja");
   const [summaryType, setSummaryType] = useState("medium");
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [autoProgress, setAutoProgress] = useState<"idle" | "transcribing" | "translating" | "summarizing">("idle");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -36,9 +37,11 @@ export default function Home() {
         audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         setAudioBlob(audioBlob);
+        // Automatically start transcription
+        await performAutoTranscription(audioBlob);
       };
 
       mediaRecorder.start();
@@ -53,91 +56,77 @@ export default function Home() {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setRecordingState("idle");
+      setRecordingState("processing");
     }
   };
 
-  const handleTranscribe = async () => {
-    if (!audioBlob) {
-      alert("音声を録音してください");
-      return;
-    }
-
+  const performAutoTranscription = async (blob: Blob) => {
     try {
-      setRecordingState("processing");
+      setAutoProgress("transcribing");
       
       // Convert blob to array buffer
-      const arrayBuffer = await audioBlob.arrayBuffer();
+      const arrayBuffer = await blob.arrayBuffer();
       const base64Audio = Buffer.from(arrayBuffer).toString('base64');
       
       // Upload audio to storage
-      try {
-        const uploadResult = await uploadAudioMutation.mutateAsync({
-          audioData: base64Audio,
-          mimeType: audioBlob.type || "audio/webm",
-        });
-        
-        // Transcribe using the uploaded URL
-        const result = await transcribeMutation.mutateAsync({
-          audioUrl: uploadResult.url,
-          language: "en",
-        });
-        
-        if ('text' in result) {
-          setTranscription(result.text as string);
-        }
-      } catch (uploadError) {
-        console.error("Upload failed:", uploadError);
-        alert("オーディオのアップロードに失敗しました");
-      }
-      setRecordingState("idle");
-    } catch (error) {
-      console.error("Transcription failed:", error);
-      alert("音声の転写に失敗しました");
-      setRecordingState("idle");
-    }
-  };
-
-  const handleTranslate = async () => {
-    if (!transcription) {
-      alert("先に音声を転写してください");
-      return;
-    }
-
-    try {
-      const result = await translateMutation.mutateAsync({
-        text: transcription,
+      const uploadResult = await uploadAudioMutation.mutateAsync({
+        audioData: base64Audio,
+        mimeType: blob.type || "audio/webm",
+      });
+      
+      // Transcribe using the uploaded URL
+      const result = await transcribeMutation.mutateAsync({
+        audioUrl: uploadResult.url,
+        language: "en",
+      });
+      
+      const transcribedText = typeof result === 'object' && 'text' in result ? (result.text as string) : String(result);
+      setTranscription(transcribedText);
+      
+      // Auto-translate
+      setAutoProgress("translating");
+      const translateResult = await translateMutation.mutateAsync({
+        text: transcribedText,
         targetLanguage: selectedLanguage,
       });
-      setTranslation(typeof result.translation === 'string' ? result.translation : '');
-    } catch (error) {
-      console.error("Translation failed:", error);
-      alert("翻訳に失敗しました");
-    }
-  };
-
-  const handleSummarize = async () => {
-    if (!transcription) {
-      alert("先に音声を転写してください");
-      return;
-    }
-
-    try {
-      const result = await summaryMutation.mutateAsync({
-        text: transcription,
+      const translatedText = typeof translateResult.translation === 'string' ? translateResult.translation : '';
+      setTranslation(translatedText);
+      
+      // Auto-summarize
+      setAutoProgress("summarizing");
+      const summaryResult = await summaryMutation.mutateAsync({
+        text: transcribedText,
         type: summaryType as "short" | "medium" | "detailed",
         language: selectedLanguage,
       });
-      setSummary(typeof result.summary === 'string' ? result.summary : '');
+      const summaryText = typeof summaryResult.summary === 'string' ? summaryResult.summary : '';
+      setSummary(summaryText);
+      
+      setAutoProgress("idle");
+      setRecordingState("idle");
     } catch (error) {
-      console.error("Summary generation failed:", error);
-      alert("サマリー生成に失敗しました");
+      console.error("Auto processing failed:", error);
+      setAutoProgress("idle");
+      setRecordingState("idle");
+      alert("処理に失敗しました。もう一度お試しください。");
     }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("コピーしました");
+  };
+
+  const getProgressMessage = () => {
+    switch (autoProgress) {
+      case "transcribing":
+        return "音声を転写中...";
+      case "translating":
+        return "翻訳中...";
+      case "summarizing":
+        return "議事録を生成中...";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -150,6 +139,18 @@ export default function Home() {
           {user && <p className="text-sm text-gray-500 mt-2">ユーザー: {user.name || user.email}</p>}
         </div>
 
+        {/* Progress Indicator */}
+        {autoProgress !== "idle" && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <span className="text-blue-900 font-medium">{getProgressMessage()}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recording Section */}
           <Card>
@@ -158,11 +159,11 @@ export default function Home() {
                 <Mic className="w-5 h-5" />
                 音声録音
               </CardTitle>
-              <CardDescription>マイクで音声を録音して転写します</CardDescription>
+              <CardDescription>マイクで音声を録音して自動処理します</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                {recordingState === "idle" && (
+                {recordingState === "idle" && autoProgress === "idle" && (
                   <Button onClick={startRecording} className="flex-1 bg-red-600 hover:bg-red-700">
                     <Mic className="w-4 h-4 mr-2" />
                     録音開始
@@ -173,7 +174,7 @@ export default function Home() {
                     停止
                   </Button>
                 )}
-                {recordingState === "processing" && (
+                {(recordingState === "processing" || autoProgress !== "idle") && (
                   <Button disabled className="flex-1">
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     処理中...
@@ -181,18 +182,39 @@ export default function Home() {
                 )}
               </div>
 
-              {audioBlob && (
-                <Button onClick={handleTranscribe} className="w-full" disabled={transcribeMutation.isPending || uploadAudioMutation.isPending}>
-                  {transcribeMutation.isPending || uploadAudioMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      転写中...
-                    </>
+              {/* Process Status */}
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  {transcription ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
                   ) : (
-                    "音声を転写"
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
                   )}
-                </Button>
-              )}
+                  <span className={transcription ? "text-green-600 font-medium" : "text-gray-500"}>
+                    転写完了
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {translation ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                  )}
+                  <span className={translation ? "text-green-600 font-medium" : "text-gray-500"}>
+                    翻訳完了
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {summary ? (
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                  )}
+                  <span className={summary ? "text-green-600 font-medium" : "text-gray-500"}>
+                    議事録生成完了
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -243,30 +265,6 @@ export default function Home() {
                 </SelectContent>
               </Select>
 
-              <Button
-                onClick={handleTranslate}
-                className="w-full"
-                disabled={!transcription || translateMutation.isPending}
-              >
-                {translateMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    翻訳中...
-                  </>
-                ) : (
-                  "翻訳"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Translation Result */}
-          <Card>
-            <CardHeader>
-              <CardTitle>翻訳結果</CardTitle>
-              <CardDescription>翻訳されたテキスト</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <Textarea
                 value={translation}
                 onChange={(e) => setTranslation(e.target.value)}
@@ -289,45 +287,21 @@ export default function Home() {
           {/* Summary Section */}
           <Card>
             <CardHeader>
-              <CardTitle>議事録生成</CardTitle>
-              <CardDescription>転写テキストから議事録を生成します</CardDescription>
+              <CardTitle>議事録</CardTitle>
+              <CardDescription>自動生成された議事録</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Select value={summaryType} onValueChange={setSummaryType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="要約タイプを選択" />
+                  <SelectValue placeholder="要約形式を選択" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="short">短い要約（4-5行）</SelectItem>
+                  <SelectItem value="short">短い要約（1-2段落）</SelectItem>
                   <SelectItem value="medium">中程度の要約（3-4段落）</SelectItem>
-                  <SelectItem value="detailed">詳細な要約</SelectItem>
+                  <SelectItem value="detailed">詳細な要約（5段落以上）</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Button
-                onClick={handleSummarize}
-                className="w-full"
-                disabled={!transcription || summaryMutation.isPending}
-              >
-                {summaryMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中...
-                  </>
-                ) : (
-                  "議事録を生成"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Summary Result */}
-          <Card>
-            <CardHeader>
-              <CardTitle>議事録</CardTitle>
-              <CardDescription>生成された議事録</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <Textarea
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
