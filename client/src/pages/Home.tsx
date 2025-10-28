@@ -112,6 +112,43 @@ export default function Home() {
     }
   };
 
+  const handleTranslate = async () => {
+    if (!transcription) {
+      alert("先に音声を転写してください");
+      return;
+    }
+
+    try {
+      const result = await translateMutation.mutateAsync({
+        text: transcription,
+        targetLanguage: selectedLanguage,
+      });
+      setTranslation(typeof result.translation === 'string' ? result.translation : '');
+    } catch (error) {
+      console.error("Translation failed:", error);
+      alert("翻訳に失敗しました");
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!transcription) {
+      alert("先に音声を転写してください");
+      return;
+    }
+
+    try {
+      const result = await summaryMutation.mutateAsync({
+        text: transcription,
+        type: summaryType as "short" | "medium" | "detailed",
+        language: selectedLanguage,
+      });
+      setSummary(typeof result.summary === 'string' ? result.summary : '');
+    } catch (error) {
+      console.error("Summary generation failed:", error);
+      alert("サマリー生成に失敗しました");
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -136,7 +173,7 @@ export default function Home() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">{APP_TITLE}</h1>
           <p className="text-gray-600">リアルタイム音声転写、翻訳、議事録作成</p>
-          {user && <p className="text-sm text-gray-500 mt-2">ユーザー: {user.name || user.email}</p>}
+  
         </div>
 
         {/* Progress Indicator */}
@@ -265,6 +302,21 @@ export default function Home() {
                 </SelectContent>
               </Select>
 
+              <Button
+                onClick={handleTranslate}
+                className="w-full"
+                disabled={!transcription || translateMutation.isPending}
+              >
+                {translateMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    翻訳中...
+                  </>
+                ) : (
+                  "翻訳"
+                )}
+              </Button>
+
               <Textarea
                 value={translation}
                 onChange={(e) => setTranslation(e.target.value)}
@@ -301,6 +353,21 @@ export default function Home() {
                   <SelectItem value="detailed">詳細な要約（5段落以上）</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Button
+                onClick={handleSummarize}
+                className="w-full"
+                disabled={!transcription || summaryMutation.isPending}
+              >
+                {summaryMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    議事録を生成中...
+                  </>
+                ) : (
+                  "議事録を生成"
+                )}
+              </Button>
 
               <Textarea
                 value={summary}

@@ -6,7 +6,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 
-const CSP_HEADER = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http:; frame-ancestors 'self';";
+const CSP_HEADER = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https: http:; img-src 'self' data: https: http:; font-src 'self' data: https: http:; connect-src 'self' https: http:; frame-ancestors 'self';";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
