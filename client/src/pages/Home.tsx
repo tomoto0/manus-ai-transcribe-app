@@ -64,9 +64,17 @@ export default function Home() {
     try {
       setAutoProgress("transcribing");
       
-      // Convert blob to array buffer
-      const arrayBuffer = await blob.arrayBuffer();
-      const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+      // Convert blob to base64 using FileReader
+      const base64Audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
       
       // Upload audio to storage
       const uploadResult = await uploadAudioMutation.mutateAsync({
