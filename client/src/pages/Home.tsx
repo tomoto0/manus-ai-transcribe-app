@@ -204,7 +204,7 @@ export default function Home() {
                 <Mic className="w-5 h-5" />
                 音声録音
               </CardTitle>
-              <CardDescription>マイクで音声を録音して自動処理します</CardDescription>
+              <CardDescription>マイクで音声を録音して自動処理します。英語で。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">

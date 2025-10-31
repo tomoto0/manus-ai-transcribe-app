@@ -202,6 +202,13 @@ Transcript: ${input.text}`;
           } else {
             prompt = `You are a professional business analyst. Provide a comprehensive analysis of the following transcript covering: transcript analysis, detailed summary, executive summary, main topics, key arguments, and conclusions.
 
+Requirements:
+- 5 or more well-structured paragraphs (400+ words)
+- Comprehensive coverage of all topics discussed
+- Include detailed analysis, key decisions, and action items
+- Professional business writing style
+- Do NOT include any preamble or acknowledgment - go straight to the analysis
+
 ${langInstruction}
 
 Transcript: ${input.text}`;
@@ -227,7 +234,22 @@ Transcript: ${input.text}`;
               .join("");
           }
           
-          return { summary: summaryText, type: input.type, language: input.language };
+          // Remove AI's preamble/acknowledgment if present
+          let cleanedSummary = summaryText;
+          const preamblePatterns = [
+            /^[\s\S]*?---\s*\n/,  // Remove anything before --- separator
+            /^\s*はい、承知いたしました[\s\S]*?---\s*\n/,
+            /^\s*Yes, understood[\s\S]*?---\s*\n/,
+          ];
+          
+          for (const pattern of preamblePatterns) {
+            if (pattern.test(cleanedSummary)) {
+              cleanedSummary = cleanedSummary.replace(pattern, '');
+              break;
+            }
+          }
+          
+          return { summary: cleanedSummary.trim(), type: input.type, language: input.language };
         } catch (error) {
           console.error("Summary generation error:", error);
           throw new Error(`Summary generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
