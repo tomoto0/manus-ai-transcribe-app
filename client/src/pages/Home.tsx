@@ -8,8 +8,15 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, Mic, Copy, CheckCircle } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
+const PAGE_TITLE = "AI議事録作成アプリ - 日本語会議の自動転写・翻訳・要約";
+
 export default function Home() {
   const { user } = useAuth();
+
+  // SEO: Set document title
+  useEffect(() => {
+    document.title = PAGE_TITLE;
+  }, []);
   const [recordingState, setRecordingState] = useState<"idle" | "recording" | "processing">("idle");
   const [transcription, setTranscription] = useState("");
   const [translation, setTranslation] = useState("");
@@ -178,11 +185,14 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <header className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">{APP_TITLE}</h1>
           <p className="text-gray-600">リアルタイム音声転写、翻訳、議事録作成</p>
-  
-        </div>
+        </header>
+
+        {/* SEO: H2 Section Headers */}
+        <section aria-labelledby="main-features">
+          <h2 id="main-features" className="sr-only">AI議事録作成の主要機能</h2>
 
         {/* Progress Indicator */}
         {autoProgress !== "idle" && (
@@ -396,6 +406,7 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
+        </section>
       </div>
     </div>
   );
