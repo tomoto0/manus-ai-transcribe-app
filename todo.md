@@ -50,3 +50,7 @@
 - [ ] エクスポート機能（PDF、Word等）
 - [ ] リアルタイム字幕表示
 - [ ] 話者識別機能
+
+## 認証機能の削除完了
+- [x] protectedProcedureをpublicProcedureに変更
+- [x] 誰でも使えるようにする

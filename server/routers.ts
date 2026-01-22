@@ -1,11 +1,11 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
-import { createTranscription } from "./db";
+// Database import removed - no longer storing transcriptions
 import { z } from "zod";
 
 export const appRouter = router({
@@ -24,19 +24,20 @@ export const appRouter = router({
 
   // Storage operations
   storage: router({
-    uploadAudio: protectedProcedure
+    uploadAudio: publicProcedure
       .input(z.object({
         audioData: z.string(), // Base64 encoded audio data
         mimeType: z.string().default("audio/webm"),
       }))
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         try {
           // Decode base64 to buffer
           const audioBuffer = Buffer.from(input.audioData, 'base64');
           
           // Generate unique filename
           const timestamp = Date.now();
-          const filename = `audio/${ctx.user.id}/${timestamp}.webm`;
+          const randomId = Math.random().toString(36).substring(2, 15);
+          const filename = `audio/public/${timestamp}-${randomId}.webm`;
           
           // Upload to storage
           const result = await storagePut(filename, audioBuffer, input.mimeType);
@@ -54,12 +55,12 @@ export const appRouter = router({
 
   // Transcription and AI features
   transcribe: router({
-    audio: protectedProcedure
+    audio: publicProcedure
       .input(z.object({
         audioUrl: z.string(),
         language: z.string().optional(),
       }))
-      .mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input }) => {
         try {
           const result = await transcribeAudio({
             audioUrl: input.audioUrl,
@@ -69,16 +70,6 @@ export const appRouter = router({
           if ('error' in result) {
             throw new Error(result.error);
           }
-          
-          // Store transcription in database
-          const sessionId = `session-${Date.now()}`;
-          await createTranscription({
-            userId: ctx.user.id,
-            sessionId,
-            text: result.text,
-            language: result.language,
-            duration: Math.round(result.duration),
-          });
           
           return result;
         } catch (error) {
@@ -90,7 +81,7 @@ export const appRouter = router({
 
   // Translation feature
   translate: router({
-    text: protectedProcedure
+    text: publicProcedure
       .input(z.object({
         text: z.string(),
         targetLanguage: z.string(),
@@ -148,7 +139,7 @@ export const appRouter = router({
 
   // Summary generation feature
   summary: router({
-    generate: protectedProcedure
+    generate: publicProcedure
       .input(z.object({
         text: z.string(),
         type: z.enum(["short", "medium", "detailed"]).default("medium"),
