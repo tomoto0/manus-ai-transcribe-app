@@ -4,7 +4,7 @@
 
 ## 🌐 本番環境URL
 
-**デプロイURL**: https://aitranscribe-lyvmgdbf.manus.space
+**デプロイURL**: https://transcribe-ai.manus.space
 
 ## 📸 アプリケーション画面
 
