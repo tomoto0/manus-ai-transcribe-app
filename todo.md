@@ -54,3 +54,7 @@
 ## 認証機能の削除完了
 - [x] protectedProcedureをpublicProcedureに変更
 - [x] 誰でも使えるようにする
+
+## GitHubリポジトリへのプッシュ
+- [ ] README.mdを更新
+- [ ] 最終デプロイファイルをGitHubにプッシュ
